@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, Target, FileText, Users, Copy, Check, Save, ChevronDown } from 'lucide-react';
+import { Calendar, Clock, MapPin, Target, FileText, Users, Copy, Check, Save, ChevronDown, Search, X } from 'lucide-react';
 import { EventTemplate, RecurringPattern } from './types';
 import { supabase } from './lib/supabase';
 import { formatEventText } from './utils/formatters';
+import { fetchHubSpotContacts, getUniqueLocations, HubSpotContact } from './services/hubspot';
+
+// Chris Ashby constant
+const CHRIS_ASHBY = {
+  name: 'Chris Ashby',
+  email: 'chris.ashby@omegamorgan.com'
+};
 
 function App() {
   const [formData, setFormData] = useState<EventTemplate>({
@@ -27,10 +34,37 @@ function App() {
   const [copied, setCopied] = useState(false);
   const [showRecurring, setShowRecurring] = useState(false);
 
-  // Load saved templates from Supabase
+  // HubSpot state
+  const [hubspotContacts, setHubspotContacts] = useState<HubSpotContact[]>([]);
+  const [locations, setLocations] = useState<string[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<HubSpotContact[]>([]);
+  const [includeChris, setIncludeChris] = useState(true);
+  const [contactSearch, setContactSearch] = useState('');
+  const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const [locationSearch, setLocationSearch] = useState('');
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+
+  // Load HubSpot contacts on mount
+  useEffect(() => {
+    loadHubSpotData();
+  }, []);
+
+  // Load saved templates
   useEffect(() => {
     loadTemplates();
   }, []);
+
+  // Update RSVP when contacts change
+  useEffect(() => {
+    updateRSVPField();
+  }, [selectedContacts, includeChris]);
+
+  const loadHubSpotData = async () => {
+    const contacts = await fetchHubSpotContacts();
+    setHubspotContacts(contacts);
+    const uniqueLocations = getUniqueLocations(contacts);
+    setLocations(uniqueLocations);
+  };
 
   const loadTemplates = async () => {
     try {
@@ -44,6 +78,22 @@ function App() {
     } catch (error) {
       console.error('Error loading templates:', error);
     }
+  };
+
+  const updateRSVPField = () => {
+    const emails: string[] = [];
+
+    // Add selected contacts
+    selectedContacts.forEach(contact => {
+      if (contact.email) emails.push(contact.email);
+    });
+
+    // Add Chris Ashby if checked
+    if (includeChris) {
+      emails.push(CHRIS_ASHBY.email);
+    }
+
+    setFormData(prev => ({ ...prev, rsvp: emails.join(', ') }));
   };
 
   const handleInputChange = (field: keyof EventTemplate, value: string) => {
@@ -91,6 +141,35 @@ function App() {
     setFormData(template);
     generatePreview();
   };
+
+  const addContact = (contact: HubSpotContact) => {
+    if (!selectedContacts.find(c => c.id === contact.id)) {
+      setSelectedContacts([...selectedContacts, contact]);
+    }
+    setContactSearch('');
+    setShowContactDropdown(false);
+  };
+
+  const removeContact = (contactId: string) => {
+    setSelectedContacts(selectedContacts.filter(c => c.id !== contactId));
+  };
+
+  const selectLocation = (location: string) => {
+    setFormData(prev => ({ ...prev, location }));
+    setLocationSearch('');
+    setShowLocationDropdown(false);
+  };
+
+  const filteredContacts = hubspotContacts.filter(contact => {
+    const searchLower = contactSearch.toLowerCase();
+    const fullName = `${contact.firstname} ${contact.lastname}`.toLowerCase();
+    const email = contact.email?.toLowerCase() || '';
+    return fullName.includes(searchLower) || email.includes(searchLower);
+  });
+
+  const filteredLocations = locations.filter(location =>
+    location.toLowerCase().includes(locationSearch.toLowerCase())
+  );
 
   useEffect(() => {
     if (formData.title || formData.date) {
@@ -156,18 +235,41 @@ function App() {
                 </div>
               </div>
 
-              {/* Location */}
-              <div className="mb-4">
+              {/* Location with HubSpot Integration */}
+              <div className="mb-4 relative">
                 <label className="block text-sm font-medium mb-2 text-gray-300 flex items-center gap-2">
                   <MapPin size={16} /> Location *
                 </label>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="Conference Room A / Zoom Link"
-                  value={formData.location}
-                  onChange={(e) => handleInputChange('location', e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    className="input-field pr-10"
+                    placeholder="Start typing or select from HubSpot..."
+                    value={formData.location || locationSearch}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setLocationSearch(value);
+                      setFormData(prev => ({ ...prev, location: value }));
+                      setShowLocationDropdown(true);
+                    }}
+                    onFocus={() => setShowLocationDropdown(true)}
+                  />
+                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                </div>
+
+                {showLocationDropdown && filteredLocations.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-surface border border-accent rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {filteredLocations.map((location, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => selectLocation(location)}
+                        className="w-full text-left px-4 py-2 hover:bg-surface-highlight transition-colors text-sm"
+                      >
+                        {location}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Event Goal */}
@@ -198,17 +300,88 @@ function App() {
                 />
               </div>
 
-              {/* RSVP */}
+              {/* RSVP with HubSpot Integration */}
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2 text-gray-300 flex items-center gap-2">
-                  <Users size={16} /> RSVP Details *
+                  <Users size={16} /> Attendees / RSVP *
                 </label>
+
+                {/* Chris Ashby Checkbox */}
+                <div className="mb-3 p-3 bg-surface-highlight rounded-lg border border-accent-soft">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={includeChris}
+                      onChange={(e) => setIncludeChris(e.target.checked)}
+                      className="w-4 h-4 accent-accent"
+                    />
+                    <span className="text-sm font-medium">
+                      ☑️ Include {CHRIS_ASHBY.name} ({CHRIS_ASHBY.email})
+                    </span>
+                  </label>
+                </div>
+
+                {/* Contact Search */}
+                <div className="relative mb-2">
+                  <input
+                    type="text"
+                    className="input-field pr-10"
+                    placeholder="Search HubSpot contacts..."
+                    value={contactSearch}
+                    onChange={(e) => {
+                      setContactSearch(e.target.value);
+                      setShowContactDropdown(true);
+                    }}
+                    onFocus={() => setShowContactDropdown(true)}
+                  />
+                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                </div>
+
+                {/* Contact Dropdown */}
+                {showContactDropdown && filteredContacts.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-surface border border-accent rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {filteredContacts.slice(0, 10).map((contact) => (
+                      <button
+                        key={contact.id}
+                        onClick={() => addContact(contact)}
+                        className="w-full text-left px-4 py-2 hover:bg-surface-highlight transition-colors"
+                      >
+                        <div className="font-medium text-sm">
+                          {contact.firstname} {contact.lastname}
+                        </div>
+                        <div className="text-xs text-gray-400">{contact.email}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Selected Contacts */}
+                {selectedContacts.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedContacts.map((contact) => (
+                      <div
+                        key={contact.id}
+                        className="flex items-center gap-2 bg-surface-highlight px-3 py-1 rounded-full text-sm border border-accent-soft"
+                      >
+                        <span>{contact.firstname} {contact.lastname}</span>
+                        <button
+                          onClick={() => removeContact(contact.id)}
+                          className="hover:text-accent transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Manual Entry Field (read-only, shows emails) */}
                 <input
                   type="text"
-                  className="input-field"
-                  placeholder="john@company.com, jane@company.com"
+                  className="input-field mt-2 bg-surface-highlight"
+                  placeholder="Selected email addresses will appear here"
                   value={formData.rsvp}
-                  onChange={(e) => handleInputChange('rsvp', e.target.value)}
+                  readOnly
                 />
               </div>
 
