@@ -192,9 +192,7 @@ function App() {
                 <textarea
                   className="input-field resize-none"
                   rows={4}
-                  placeholder={\`1. Review progress
-2. Discuss challenges
-3. Plan next steps\`}
+                  placeholder="1. Review progress&#10;2. Discuss challenges&#10;3. Plan next steps"
                   value={formData.agenda}
                   onChange={(e) => handleInputChange('agenda', e.target.value)}
                 />
@@ -220,7 +218,7 @@ function App() {
                 className="w-full btn-secondary flex items-center justify-between mb-4"
               >
                 <span>Recurring Event Options</span>
-                <ChevronDown className={\`transition-transform \${showRecurring ? 'rotate-180' : ''}\`} size={20} />
+                <ChevronDown className={'transition-transform ' + (showRecurring ? 'rotate-180' : '')} size={20} />
               </button>
 
               {/* Recurring Options */}
@@ -342,7 +340,7 @@ function App() {
                 <button
                   onClick={copyToClipboard}
                   disabled={!generatedText}
-                  className={\`btn-primary flex items-center gap-2 \${!generatedText ? 'opacity-50 cursor-not-allowed' : ''}\`}
+                  className={'btn-primary flex items-center gap-2 ' + (!generatedText ? 'opacity-50 cursor-not-allowed' : '')}
                 >
                   {copied ? (
                     <>
