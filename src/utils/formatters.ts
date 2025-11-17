@@ -17,41 +17,41 @@ export const formatEventText = (event: EventTemplate): string => {
     timeObj.setHours(parseInt(hours), parseInt(minutes));
     const formattedTime = format(timeObj, 'h:mm a');
 
-    let text = \`📅 **EVENT INVITATION**
+    let text = `📅 **EVENT INVITATION**
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🎯 **Event:** \${event.title}
+🎯 **Event:** ${event.title}
 
-📆 **Date:** \${formattedDate}
-🕐 **Time:** \${formattedTime} PST
+📆 **Date:** ${formattedDate}
+🕐 **Time:** ${formattedTime} PST
 
-📍 **Location:** \${event.location}
-\`;
+📍 **Location:** ${event.location}
+`;
 
     if (event.goal) {
-      text += \`\n🎯 **Goal:** \${event.goal}\`;
+      text += `\n🎯 **Goal:** ${event.goal}`;
     }
 
     if (event.agenda) {
-      text += \`\n\n📋 **Agenda:**
-\${event.agenda}\`;
+      text += `\n\n📋 **Agenda:**
+${event.agenda}`;
     }
 
     if (event.rsvp) {
-      text += \`\n\n👥 **RSVP:** \${event.rsvp}\`;
+      text += `\n\n👥 **RSVP:** ${event.rsvp}`;
     }
 
     // Add recurring information if enabled
     if (event.recurring?.enabled && event.recurring.frequency) {
-      text += \`\n\n🔄 **Recurring:** \`;
+      text += `\n\n🔄 **Recurring:** `;
 
       if (event.recurring.frequency === 'daily') {
         text += 'Daily';
       } else if (event.recurring.frequency === 'weekly') {
-        text += \`Weekly\`;
+        text += `Weekly`;
         if (event.recurring.daysOfWeek && event.recurring.daysOfWeek.length > 0) {
-          text += \` on \${event.recurring.daysOfWeek.join(', ')}\`;
+          text += ` on ${event.recurring.daysOfWeek.join(', ')}`;
         }
       } else if (event.recurring.frequency === 'monthly') {
         text += 'Monthly';
@@ -59,15 +59,15 @@ export const formatEventText = (event: EventTemplate): string => {
 
       if (event.recurring.endDate) {
         const endDate = format(new Date(event.recurring.endDate), 'MMMM d, yyyy');
-        text += \` until \${endDate}\`;
+        text += ` until ${endDate}`;
       } else if (event.recurring.occurrences) {
-        text += \` for \${event.recurring.occurrences} occurrences\`;
+        text += ` for ${event.recurring.occurrences} occurrences`;
       }
     }
 
-    text += \`\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━
+    text += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Please confirm your attendance. Looking forward to seeing you there!\`;
+Please confirm your attendance. Looking forward to seeing you there!`;
 
     return text;
   } catch (error) {
