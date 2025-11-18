@@ -146,6 +146,12 @@ function App() {
     if (!selectedContacts.find(c => c.id === contact.id)) {
       setSelectedContacts([...selectedContacts, contact]);
     }
+
+    // Auto-populate the location field from the contact's company if it's empty
+    if (!formData.location && contact.companyLocation) {
+      setFormData(prev => ({ ...prev, location: contact.companyLocation || '' }));
+    }
+
     setContactSearch('');
     setShowContactDropdown(false);
   };
@@ -164,7 +170,14 @@ function App() {
     const searchLower = contactSearch.toLowerCase();
     const fullName = `${contact.firstname} ${contact.lastname}`.toLowerCase();
     const email = contact.email?.toLowerCase() || '';
-    return fullName.includes(searchLower) || email.includes(searchLower);
+    const companyName = contact.company?.name?.toLowerCase() || '';
+    const companyLocation = contact.companyLocation?.toLowerCase() || '';
+    return (
+      fullName.includes(searchLower) ||
+      email.includes(searchLower) ||
+      companyName.includes(searchLower) ||
+      companyLocation.includes(searchLower)
+    );
   });
 
   const filteredLocations = locations.filter(location =>
@@ -350,6 +363,13 @@ function App() {
                           {contact.firstname} {contact.lastname}
                         </div>
                         <div className="text-xs text-gray-400">{contact.email}</div>
+                        {(contact.company?.name || contact.companyLocation) && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {contact.company?.name && <span className="font-medium">{contact.company.name}</span>}
+                            {contact.company?.name && contact.companyLocation && ' • '}
+                            {contact.companyLocation}
+                          </div>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -363,7 +383,12 @@ function App() {
                         key={contact.id}
                         className="flex items-center gap-2 bg-surface-highlight px-3 py-1 rounded-full text-sm border border-accent-soft"
                       >
-                        <span>{contact.firstname} {contact.lastname}</span>
+                        <div className="flex flex-col">
+                          <span>{contact.firstname} {contact.lastname}</span>
+                          {contact.company?.name && (
+                            <span className="text-xs text-gray-400">{contact.company.name}</span>
+                          )}
+                        </div>
                         <button
                           onClick={() => removeContact(contact.id)}
                           className="hover:text-accent transition-colors"

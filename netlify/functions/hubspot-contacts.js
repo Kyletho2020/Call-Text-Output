@@ -26,9 +26,9 @@ export async function handler(event, context) {
       throw new Error('HubSpot access token not configured');
     }
 
-    // Fetch contacts from HubSpot
+    // Fetch contacts from HubSpot including company associations
     const response = await fetch(
-      'https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,email,address,city,state,zip',
+      'https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,email,address,city,state,zip&associations=companies',
       {
         headers: {
           'Authorization': `Bearer ${ACCESS_TOKEN}`,
@@ -43,17 +43,82 @@ export async function handler(event, context) {
 
     const data = await response.json();
 
-    // Transform the data
-    const contacts = data.results.map(contact => ({
-      id: contact.id,
-      firstname: contact.properties.firstname || '',
-      lastname: contact.properties.lastname || '',
-      email: contact.properties.email || '',
-      address: contact.properties.address || '',
-      city: contact.properties.city || '',
-      state: contact.properties.state || '',
-      zip: contact.properties.zip || '',
-    }));
+    const contactsFromHubSpot = data.results || [];
+
+    // Gather all company ids so we can batch fetch their details
+    const companyIds = new Set();
+    contactsFromHubSpot.forEach(contact => {
+      const associatedCompanies = contact.associations?.companies?.results || [];
+      associatedCompanies.forEach(company => {
+        if (company.id) {
+          companyIds.add(company.id);
+        }
+      });
+    });
+
+    let companyMap = {};
+
+    if (companyIds.size > 0) {
+      const companyResponse = await fetch(
+        'https://api.hubapi.com/crm/v3/objects/companies/batch/read',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${ACCESS_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            properties: ['name', 'address', 'city', 'state', 'zip', 'country'],
+            inputs: Array.from(companyIds).map(id => ({ id })),
+          }),
+        }
+      );
+
+      if (!companyResponse.ok) {
+        throw new Error(`HubSpot company API error: ${companyResponse.status}`);
+      }
+
+      const companyData = await companyResponse.json();
+      companyMap = (companyData.results || []).reduce((acc, company) => {
+        acc[company.id] = company.properties || {};
+        return acc;
+      }, {});
+    }
+
+    // Transform the data and include company information when available
+    const contacts = contactsFromHubSpot.map(contact => {
+      const associatedCompany = contact.associations?.companies?.results?.[0];
+      const companyId = associatedCompany?.id;
+      const companyProperties = companyId ? companyMap[companyId] : null;
+      const companyLocation = companyProperties
+        ? [companyProperties.address, companyProperties.city, companyProperties.state, companyProperties.zip]
+            .filter(Boolean)
+            .join(', ')
+        : '';
+
+      return {
+        id: contact.id,
+        firstname: contact.properties.firstname || '',
+        lastname: contact.properties.lastname || '',
+        email: contact.properties.email || '',
+        address: contact.properties.address || '',
+        city: contact.properties.city || '',
+        state: contact.properties.state || '',
+        zip: contact.properties.zip || '',
+        company: companyProperties
+          ? {
+              id: companyId,
+              name: companyProperties.name || '',
+              address: companyProperties.address || '',
+              city: companyProperties.city || '',
+              state: companyProperties.state || '',
+              zip: companyProperties.zip || '',
+              country: companyProperties.country || '',
+            }
+          : null,
+        companyLocation,
+      };
+    });
 
     return {
       statusCode: 200,
