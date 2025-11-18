@@ -1,4 +1,12 @@
-import fetch from 'node-fetch';
+const fetchFromRuntime = (...args) => {
+  if (typeof fetch === 'function') {
+    return fetch(...args);
+  }
+
+  throw new Error(
+    'Fetch API is not available in this runtime. Please ensure the function runs on Node 18+' 
+  );
+};
 
 export async function handler(event, context) {
   // Handle CORS
@@ -27,7 +35,7 @@ export async function handler(event, context) {
     }
 
     // Fetch contacts from HubSpot including company associations
-    const response = await fetch(
+    const response = await fetchFromRuntime(
       'https://api.hubapi.com/crm/v3/objects/contacts?limit=100&properties=firstname,lastname,email,address,city,state,zip&associations=companies',
       {
         headers: {
@@ -59,7 +67,7 @@ export async function handler(event, context) {
     let companyMap = {};
 
     if (companyIds.size > 0) {
-      const companyResponse = await fetch(
+      const companyResponse = await fetchFromRuntime(
         'https://api.hubapi.com/crm/v3/objects/companies/batch/read',
         {
           method: 'POST',
