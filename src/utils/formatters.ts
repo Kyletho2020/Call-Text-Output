@@ -1,5 +1,5 @@
 import { EventTemplate } from '../types';
-import { format, parse } from 'date-fns';
+import { format } from 'date-fns';
 
 export const formatEventText = (event: EventTemplate): string => {
   if (!event.title || !event.date || !event.time) {

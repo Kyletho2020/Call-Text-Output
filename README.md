@@ -9,6 +9,7 @@ A modern, sleek calendar invite text generator built with React, TypeScript, and
 - 🔄 **Recurring Events** - Support for daily, weekly, and monthly recurring events
 - 📋 **Copy to Clipboard** - One-click copy functionality
 - 💾 **Supabase Integration** - Cloud storage for event templates
+- 🔍 **HubSpot Contact Search** - Pull attendee emails and company locations directly from HubSpot
 - 📱 **Responsive Design** - Works on all devices
 - ⚡ **Real-time Preview** - See your invite text as you type
 
@@ -50,6 +51,27 @@ npm run dev
 \`\`\`
 
 7. Open [http://localhost:5173](http://localhost:5173) in your browser
+
+
+> 📝 **Note:** To load HubSpot contacts while developing locally, run the Netlify dev server so the HubSpot function is available:
+```bash
+npx netlify dev
+```
+This spins up Vite _and_ the serverless function at the same time. When deploying to Netlify the function is wired up automatically.
+
+## 🔌 HubSpot Integration
+
+The attendee search and location auto-fill pull live data from your HubSpot CRM through a Netlify serverless function. To connect your own HubSpot portal:
+
+1. [Create a HubSpot Private App](https://developers.hubspot.com/docs/api/private-apps) with the **CRM** scopes for `contacts` and `companies`.
+2. Copy the Private App access token and keep it somewhere secure.
+3. Create a `.env` file based on `.env.example` (or update your Netlify dashboard settings) and set:
+   ```env
+   HUBSPOT_ACCESS_TOKEN=your_private_app_token
+   ```
+4. Restart your local dev server (`npx netlify dev`) so the function can read the new environment variable.
+
+Behind the scenes the `/.netlify/functions/hubspot-contacts` endpoint fetches the first 100 contacts, grabs their associated companies, and returns each contact's email plus the company's mailing address. When you pick a contact in the UI their email is added to the RSVP list and, if your location field is empty, it will automatically fill in the associated company address.
 
 ## 🗄️ Database Setup
 

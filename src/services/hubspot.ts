@@ -1,3 +1,13 @@
+export interface HubSpotCompany {
+  id: string;
+  name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  country?: string;
+}
+
 export interface HubSpotContact {
   id: string;
   firstname: string;
@@ -7,6 +17,8 @@ export interface HubSpotContact {
   city?: string;
   state?: string;
   zip?: string;
+  company?: HubSpotCompany | null;
+  companyLocation?: string;
 }
 
 // Fetch all contacts from HubSpot via our API function
@@ -31,15 +43,27 @@ export function getUniqueLocations(contacts: HubSpotContact[]): string[] {
   const locations = new Set<string>();
 
   contacts.forEach(contact => {
-    if (contact.address || contact.city) {
-      const parts = [];
-      if (contact.address) parts.push(contact.address);
-      if (contact.city) parts.push(contact.city);
-      if (contact.state) parts.push(contact.state);
-      if (contact.zip) parts.push(contact.zip);
+    const contactLocationParts = [contact.address, contact.city, contact.state, contact.zip];
+    const contactLocation = contactLocationParts.filter(Boolean).join(', ');
+    if (contactLocation) {
+      locations.add(contactLocation);
+    }
 
-      const location = parts.join(', ');
-      if (location) locations.add(location);
+    if (contact.companyLocation) {
+      locations.add(contact.companyLocation);
+    }
+
+    if (contact.company) {
+      const companyParts = [
+        contact.company.address,
+        contact.company.city,
+        contact.company.state,
+        contact.company.zip,
+      ];
+      const companyLocation = companyParts.filter(Boolean).join(', ');
+      if (companyLocation) {
+        locations.add(companyLocation);
+      }
     }
   });
 
