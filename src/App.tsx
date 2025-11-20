@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, Target, FileText, Users, Copy, Check, Save, ChevronDown, Search, X } from 'lucide-react';
 import { EventTemplate, RecurringPattern } from './types';
 import { supabase } from './lib/supabase';
-import { formatEventText } from './utils/formatters';
+import { fetchHubSpotContacts, getUniqueLocations, HubSpotContact, searchHubSpotContacts, SearchType } from './services/hubspot';
 import { fetchHubSpotContacts, getUniqueLocations, HubSpotContact } from './services/hubspot';
 
 // Chris Ashby constant
@@ -41,6 +41,9 @@ function App() {
   const [includeChris, setIncludeChris] = useState(true);
   const [contactSearch, setContactSearch] = useState('');
   const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const [searchType, setSearchType] = useState<SearchType>('name');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<HubSpotContact[]>([]);
   const [locationSearch, setLocationSearch] = useState('');
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
 
@@ -65,6 +68,37 @@ function App() {
     const uniqueLocations = getUniqueLocations(contacts);
     setLocations(uniqueLocations);
   };
+
+  const performSearch = async (query: string, type: SearchType) => {
+    if (!query.trim() || query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const results = await searchHubSpotContacts(query, type);
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Debounced search effect
+  useEffect(() => {
+    if (contactSearch.trim().length >= 2) {
+      const timer = setTimeout(() => {
+        performSearch(contactSearch, searchType);
+      }, 500); // 500ms debounce
+      return () => clearTimeout(timer);
+    } else {
+      setSearchResults([]);
+    }
+  }, [contactSearch, searchType]);
+
 
   const loadTemplates = async () => {
     try {
@@ -166,19 +200,23 @@ function App() {
     setShowLocationDropdown(false);
   };
 
-  const filteredContacts = hubspotContacts.filter(contact => {
-    const searchLower = contactSearch.toLowerCase();
-    const fullName = `${contact.firstname} ${contact.lastname}`.toLowerCase();
-    const email = contact.email?.toLowerCase() || '';
-    const companyName = contact.company?.name?.toLowerCase() || '';
-    const companyLocation = contact.companyLocation?.toLowerCase() || '';
-    return (
-      fullName.includes(searchLower) ||
-      email.includes(searchLower) ||
-      companyName.includes(searchLower) ||
-      companyLocation.includes(searchLower)
-    );
-  });
+  // Use search results if actively searching, otherwise show all contacts filtered locally
+  const displayContacts = contactSearch.trim().length >= 2 && searchResults.length > 0
+    ? searchResults
+    : hubspotContacts.filter(contact => {
+        if (!contactSearch) return false;
+        const searchLower = contactSearch.toLowerCase();
+        const firstName = contact.firstName || contact.firstname || '';
+        const lastName = contact.lastName || contact.lastname || '';
+        const fullName = `${firstName} ${lastName}`.toLowerCase();
+        const email = contact.email?.toLowerCase() || '';
+        const companyName = contact.companyName || contact.company?.name || '';
+        return (
+          fullName.includes(searchLower) ||
+          email.includes(searchLower) ||
+          companyName.toLowerCase().includes(searchLower)
+        );
+      });
 
   const filteredLocations = locations.filter(location =>
     location.toLowerCase().includes(locationSearch.toLowerCase())
@@ -334,33 +372,53 @@ function App() {
                   </label>
                 </div>
 
-                {/* Contact Search */}
-                <div className="relative mb-2">
-                  <input
-                    type="text"
-                    className="input-field pr-10"
-                    placeholder="Search HubSpot contacts..."
-                    value={contactSearch}
-                    onChange={(e) => {
-                      setContactSearch(e.target.value);
-                      setShowContactDropdown(true);
-                    }}
-                    onFocus={() => setShowContactDropdown(true)}
-                  />
-                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                {/* Contact Search with Type Selector */}
+                <div className="space-y-2 mb-2">
+                  <div className="flex gap-2">
+                    <select
+                      className="input-field w-32"
+                      value={searchType}
+                      onChange={(e) => setSearchType(e.target.value as SearchType)}
+                    >
+                      <option value="name">Name</option>
+                      <option value="email">Email</option>
+                      <option value="phone">Phone</option>
+                      <option value="company">Company</option>
+                    </select>
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        className="input-field pr-10"
+                        placeholder={`Search by ${searchType}...`}
+                        value={contactSearch}
+                        onChange={(e) => {
+                          setContactSearch(e.target.value);
+                          setShowContactDropdown(true);
+                        }}
+                        onFocus={() => setShowContactDropdown(true)}
+                      />
+                      <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                    </div>
+                  </div>
+                  {isSearching && (
+                    <div className="text-xs text-gray-400 flex items-center gap-2">
+                      <div className="animate-spin h-3 w-3 border-2 border-accent border-t-transparent rounded-full"></div>
+                      Searching HubSpot...
+                    </div>
+                  )}
                 </div>
 
                 {/* Contact Dropdown */}
-                {showContactDropdown && filteredContacts.length > 0 && (
+                {showContactDropdown && displayContacts.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-surface border border-accent rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                    {filteredContacts.slice(0, 10).map((contact) => (
+                    {displayContacts.slice(0, 10).map((contact) => (
                       <button
                         key={contact.id}
                         onClick={() => addContact(contact)}
                         className="w-full text-left px-4 py-2 hover:bg-surface-highlight transition-colors"
                       >
                         <div className="font-medium text-sm">
-                          {contact.firstname} {contact.lastname}
+                          {contact.firstName || contact.firstname} {contact.lastName || contact.lastname}
                         </div>
                         <div className="text-xs text-gray-400">{contact.email}</div>
                         {(contact.company?.name || contact.companyLocation) && (
@@ -384,7 +442,7 @@ function App() {
                         className="flex items-center gap-2 bg-surface-highlight px-3 py-1 rounded-full text-sm border border-accent-soft"
                       >
                         <div className="flex flex-col">
-                          <span>{contact.firstname} {contact.lastname}</span>
+                          <span>{contact.firstName || contact.firstname} {contact.lastName || contact.lastname}</span>
                           {contact.company?.name && (
                             <span className="text-xs text-gray-400">{contact.company.name}</span>
                           )}
