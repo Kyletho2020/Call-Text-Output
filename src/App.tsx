@@ -3,7 +3,6 @@ import { Calendar, Clock, MapPin, Target, FileText, Users, Copy, Check, Save, Ch
 import { EventTemplate, RecurringPattern } from './types';
 import { supabase } from './lib/supabase';
 import { fetchHubSpotContacts, getUniqueLocations, HubSpotContact, searchHubSpotContacts, SearchType } from './services/hubspot';
-import { fetchHubSpotContacts, getUniqueLocations, HubSpotContact } from './services/hubspot';
 
 // Chris Ashby constant
 const CHRIS_ASHBY = {
